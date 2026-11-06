@@ -1,1 +1,190 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>超巨大 10000マス スライドパズル</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            text-align: center;
+            background-color: #eef2f5;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            color: #4a5568;
+            margin-bottom: 10px;
+        }
+        #game-container {
+            display: inline-block;
+            background: #fff;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+        }
+        #board {
+            display: grid;
+            grid-template-columns: repeat(100, 6px);
+            grid-template-rows: repeat(100, 6px);
+            width: 600px;
+            height: 600px;
+            background-color: #fff;
+            border: 3px solid #cbd5e1;
+            border-radius: 6px;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        .tile {
+            width: 6px;
+            height: 6px;
+            box-sizing: border-box;
+            cursor: pointer;
+        }
+        .tile:not(.empty) {
+            border: 0.5px solid rgba(255,255,255,0.25);
+        }
+        .empty {
+            background-color: #f1f5f9 !important;
+            background-image: none !important;
+        }
+        #controls {
+            margin-top: 20px;
+        }
+        button {
+            font-size: 16px;
+            padding: 10px 24px;
+            background-color: #6366f1;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            box-shadow: 0 4px 6px rgba(99, 102, 241, 0.2);
+            transition: background 0.2s;
+        }
+        button:hover {
+            background-color: #4f46e5;
+        }
+        button:disabled {
+            background-color: #94a3b8;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+        #status {
+            margin-top: 12px;
+            font-size: 14px;
+            color: #64748b;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
 
+    <h1>10000マス スライドパズル (100 × 100)</h1>
+    
+    <div id="game-container">
+        <div id="board"></div>
+        <div id="controls">
+            <button id="shuffle-btn">シャッフルして開始</button>
+            <div id="status">手札: 0手 (最初は完成状態です。シャッフルしてください)</div>
+        </div>
+    </div>
+
+    <script>
+        const SIZE = 100;
+        const TILE_SIZE = 6;
+        const boardElement = document.getElementById('board');
+        const shuffleBtn = document.getElementById('shuffle-btn');
+        const statusElement = document.getElementById('status');
+
+        // 画像の軽量パターンダミーデータ（ブラウザ上で自動でパズル絵を再現します）
+        const IMAGE_DATA = 'data:image/svg+xml;utf8,<svg xmlns="http://w3.org" width="600" height="600" viewBox="0 0 600 600"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%23dbeafe"/><stop offset="40%" stop-color="%23ffedd5"/><stop offset="70%" stop-color="%23dcfce7"/><stop offset="100%" stop-color="%23f3e8ff"/></linearGradient></defs><rect width="600" height="600" fill="url(%23g)"/><circle cx="400" cy="240" r="110" fill="%23fed7aa" opacity="0.8"/><circle cx="280" cy="500" r="130" stroke="%23bfdbfe" stroke-width="40" fill="none" opacity="0.7"/><ellipse cx="220" cy="380" rx="90" ry="50" fill="%23bbf7d0" opacity="0.8"/></svg>';
+
+        let tiles = [];
+        let emptyX = SIZE - 1;
+        let emptyY = SIZE - 1;
+        let moves = 0;
+        let isPlaying = false;
+
+        function initPuzzle() {
+            boardElement.innerHTML = '';
+            tiles = [];
+            emptyX = SIZE - 1;
+            emptyY = SIZE - 1;
+            moves = 0;
+            isPlaying = false;
+            statusElement.innerText = "「シャッフル」を押すとスタートします！";
+            drawBoard();
+        }
+
+        function drawBoard() {
+            for (let y = 0; y < SIZE; y++) {
+                for (let x = 0; x < SIZE; x++) {
+                    const tile = document.createElement('div');
+                    tile.className = 'tile';
+                    tile.style.backgroundImage = `url('${IMAGE_DATA}')`;
+                    tile.style.backgroundSize = '600px 600px';
+                    tile.style.backgroundPosition = `-${x * TILE_SIZE}px -${y * TILE_SIZE}px`;
+
+                    const correctId = y * SIZE + x;
+                    if (x === emptyX && y === emptyY) tile.classList.add('empty');
+                    tile.addEventListener('click', () => tileClicked(x, y));
+                    boardElement.appendChild(tile);
+                    tiles.push({ element: tile, correctId: correctId, currentId: correctId });
+                }
+            }
+        }
+
+        function tileClicked(x, y) {
+            const isNeighbor = (Math.abs(x - emptyX) === 1 && y === emptyY) || (Math.abs(y - emptyY) === 1 && x === emptyX);
+            if (isNeighbor) {
+                swapTiles(x, y, emptyX, emptyY);
+                emptyX = x;
+                emptyY = y;
+                if (isPlaying) { moves++; statusElement.innerText = `手数: ${moves}手`; checkWin(); }
+            }
+        }
+
+        function swapTiles(x1, y1, x2, y2) {
+            const idx1 = y1 * SIZE + x1; const idx2 = y2 * SIZE + x2;
+            const temp = tiles[idx1].currentId; tiles[idx1].currentId = tiles[idx2].currentId; tiles[idx2].currentId = temp;
+            const el1 = tiles[idx1].element; const el2 = tiles[idx2].element;
+            const bgImg = el1.style.backgroundImage; const bgPos = el1.style.backgroundPosition; const isEmp = el1.classList.contains('empty');
+            el1.style.backgroundImage = el2.style.backgroundImage; el1.style.backgroundPosition = el2.style.backgroundPosition;
+            if (el2.classList.contains('empty')) el1.classList.add('empty'); else el1.classList.remove('empty');
+            el2.style.backgroundImage = bgImg; el2.style.backgroundPosition = bgPos;
+            if (isEmp) el2.classList.add('empty'); else el2.classList.remove('empty');
+        }
+
+        function shuffle() {
+            statusElement.innerText = "シャッフル中...（10000マスにつき少々お待ちください）";
+            shuffleBtn.disabled = true;
+            setTimeout(() => {
+                let lastX = emptyX; let lastY = emptyY;
+                for (let i = 0; i < 50000; i++) {
+                    let validMoves = [];
+                    if (emptyX > 0) validMoves.push({x: emptyX - 1, y: emptyY});
+                    if (emptyX < SIZE - 1) validMoves.push({x: emptyX + 1, y: emptyY});
+                    if (emptyY > 0) validMoves.push({x: emptyX, y: emptyY - 1});
+                    if (emptyY < SIZE - 1) validMoves.push({x: emptyX, y: emptyY + 1});
+                    validMoves = validMoves.filter(m => !(m.x === lastX && m.y === lastY));
+                    const next = validMoves[Math.floor(Math.random() * validMoves.length)];
+                    swapTiles(next.x, next.y, emptyX, emptyY);
+                    lastX = emptyX; lastY = emptyY; emptyX = next.x; emptyY = next.y;
+                }
+                moves = 0; isPlaying = true; shuffleBtn.disabled = false;
+                statusElement.innerText = "ゲームスタート！ 10000マスの迷宮へようこそ。";
+            }, 50);
+        }
+
+        function checkWin() {
+            const win = tiles.every(tile => tile.currentId === tile.correctId);
+            if (win) { isPlaying = false; alert(`おめでとうございます！ ${moves}手でクリアしました！`); statusElement.innerText = `祝・クリア！ 総手数: ${moves}手`; }
+        }
+
+        shuffleBtn.addEventListener('click', shuffle);
+        initPuzzle();
+    </script>
+</body>
+</html>
